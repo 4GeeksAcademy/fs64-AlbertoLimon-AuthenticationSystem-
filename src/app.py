@@ -5,6 +5,8 @@ import os
 from flask import Flask, request, jsonify, url_for, send_from_directory
 from flask_migrate import Migrate
 from flask_swagger import swagger
+from flask_jwt_extended import JWTManager
+from flask_jwt_extended import create_access_token
 from api.utils import APIException, generate_sitemap
 from api.models import db
 from api.routes import api
@@ -27,7 +29,9 @@ if db_url is not None:
 else:
     app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:////tmp/test.db"
 
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['JWT_SECRET_KEY'] = "limon"
+
+jwt = JWTManager(app)
 MIGRATE = Migrate(app, db, compare_type=True)
 db.init_app(app)
 
@@ -67,6 +71,21 @@ def serve_any_other_file(path):
     response.cache_control.max_age = 0  # avoid cache memory
     return response
 
+@app.route('/user', methods=['POST'])
+def create_token():
+    email = request.json.get("email", None)
+    password = request.json.get("password", None)
+
+    # Query your database for username and password
+    user = User.query.filter_by(email=email, password=password).first()
+
+    if user is None:
+        # The user was not found on the database
+        return jsonify({"msg": "Bad email or password"}), 401
+    
+    # Create a new token with the user id inside
+    access_token = create_access_token(identity=user.id)
+    return jsonify({ "token": access_token, "user_id": user.id })
 
 # this only runs if `$ python src/main.py` is executed
 if __name__ == '__main__':
